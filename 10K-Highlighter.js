@@ -35,17 +35,24 @@
         recursiveHighlight(document.body);
     }
 
+
     // Words to highlight
     var words = [
-        'notional amount', 'notional amounts outstanding',
-        'hedging instruments', 'derivatives not designated', 'derivative instrument',
+        '\\b\\$[0-9,.]+(?:\\s+\\w+)*\\s*(?:million|billion)\\b',
+        '\\b(?:billion|million)\\b',
+        'notional amounts outstanding', 'notional amount',
+        'hedging instrument', 'derivative instrument',
+        'derivative not designated', 'derivatives not designated',
+        'reclassified from aoci into income',
+        'cash flow hedging', 'swap contract', 'forward contract',
         'fair value of derivative', 'excluded from effectiveness testing', 'net investment',
-        'cash flow hedging', 'gain or \\(loss\\)', 'gain/loss', 'gain/\\(loss\\)', 'gains/losses',
-        'gains/\\(losses\\)', 'reclassified from aoci into income', 'foreign exchange contracts',
-        'foreign exchange', 'income on derivative', 'currency interest rate swaps',
-        ' oci ', ' aoci ', 'cash flow', 'notional', 'hedge', 'derivative', 'fair value'
-    ];
+        'income on derivative', 'interest rate swap', 'financial instrument',
+        'foreign exchange contract', 'foreign exchange','forward exchange contract', 'forward exchange',
+        'foreign currency',
 
+        '\\bgain\\b', '\\bloss\\b',
+        '\\boci\\b', '\\baoci\\b', 'cash flow', 'notional', 'hedge', 'derivative', 'fair value'
+    ];
     // Iterate over the words and highlight them
     for (var i = 0; i < words.length; i++) {
         highlight(words[i]);
@@ -53,7 +60,7 @@
 
     // Add CSS for highlighting
     var style = document.createElement('style');
-    style.innerHTML = ".highlight { background-color: yellow; }";
+    style.innerHTML = ".highlight { background-color: yellow; font-weight: bold; }";
     document.head.appendChild(style);
 
     // Optionally, you can log a message when the script runs
