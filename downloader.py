@@ -37,6 +37,10 @@ import os # Create folders
 from pathlib import Path # Find if file exists
 from tqdm import tqdm # Progress bar
 
+def writeFail(out):
+    with open(failOutFile, "a+") as file:
+        print(f"Company not found: {out}\n")
+        file.write(f'{out}\n')
 def get_json(token):
     """
     A GET request to https://data.sec.gov/submissions/CIK##########.json, which will return a JSON
@@ -57,7 +61,7 @@ def get_json(token):
         links = []
         name = data.get("name")
         if not name:
-            print("Name not found for CIK:", cik)
+            writeFail(cik)
             return links
         filings = data.get("filings", {}).get("recent", {})
         filing_urls = filings.get("primaryDocument", [])
@@ -81,8 +85,7 @@ def get_json(token):
     # append any results to failOutFile
     if not links:
         print("No 10-K links for", ticker, cik)
-        with open(failOutFile, "a") as file:
-            file.write(f'{ticker}\t{cik}\n')
+        writeFail(f'{ticker}\t{cik}')
     return links
 
 def open_links(links):
@@ -114,12 +117,15 @@ def open_links(links):
             continue
         headers = {"User-Agent": f'{name} {date}@{ticker}.com'}  # Include a user agent header
         request = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(request) as response:
-            html_content = response.read().decode()
-            with open(filename, "w") as file:
-                file.write(html_content)
-                # Update progress bar
-                progress_bar.update(1)
+        try:
+            with urllib.request.urlopen(request) as response:
+                html_content = response.read().decode()
+                with open(filename, "w") as file:
+                    file.write(html_content)
+        except urllib.error.URLError as e:
+            print(f"Failed to connect to {url}: {e.reason}\n")
+        os.system('cls' if os.name == 'nt' else 'clear')
+        progress_bar.update(1)
 
     # Close the progress bar
     progress_bar.close()
@@ -187,7 +193,7 @@ def download_one(companies):
     if token:
         get_cik(token)
     else:
-        print("Company not found.")
+        writeFail(cik)
 
 def download_multiple_from_file(companies):
     """
@@ -195,6 +201,7 @@ def download_multiple_from_file(companies):
     """
     # Stores each company's [ticker, cik] pair
     company_list = []
+    processed_companies = []
     # Read from file
     filename = input("Enter filename to read (or press enter to read from terminal): ")
     if filename:
@@ -205,14 +212,17 @@ def download_multiple_from_file(companies):
                 # Parse the value from each line
                 lines = file.readlines()
                 for line in lines:
-                    token = line.strip().replace('\t',',').split(',')
-                    if len(token) > 1:
-                        cik = token[1].zfill(10)
-                        company = next((comp for comp in companies if comp[0] == token[0] or comp[1] == cik), None)
-                        if company:
-                            company_list.append(company)
-                        else:
-                            print(f"Company not found: {token[0]}")
+                    ciks = line.replace('\t', ',').split(',')
+                    for cik in ciks:
+                        cik = cik.strip()
+                        company = next((comp for comp in companies if comp[0] == cik or comp[1] == cik.zfill(10)), None)
+                        if cik not in processed_companies:
+                            if company:
+                                company_list.append(company)
+                            else: 
+                                writeFail(cik)
+                            processed_companies.append(cik)
+                                
             # Call the `download_multiple` function to download the list
             download_multiple(company_list)
     # Read from terminal output
@@ -221,14 +231,16 @@ def download_multiple_from_file(companies):
         print("Skipping file input, reading from terminal. Enter CIKs/tickers separated by commas:")
         tokens = input("Values: ")
         if tokens:
-            ciks = tokens.split(',')
+            ciks = tokens.replace('\t', ',').replace('\n', ',').split(',')
             for cik in ciks:
                 cik = cik.strip()
                 company = next((comp for comp in companies if comp[0] == cik or comp[1] == cik.zfill(10)), None)
-                if company:
+                if company and company[1] not in processed_companies:
                     company_list.append(company)
+                    processed_companies.add(company[1])
                 else:
-                    print(f"Company not found: {cik}")
+                    if not company:
+                        writeFail(cik)
             # Call the `download_multiple` function to download the list
             download_multiple(company_list)
         else:
@@ -254,9 +266,6 @@ def main():
     if not os.path.exists('./10K'):
         # Create directory
         os.makedirs('./10K')
-    with open(failOutFile, "w") as file:
-        file.write(f'Failed to find 10-K for these companies: \n')
-        file.close()
     companies = parse_cik()
     while True:
         choice = main_menu()
