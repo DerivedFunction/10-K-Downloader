@@ -35,6 +35,7 @@
   - Option 3: Download filings for multiple companies by CIKs/tickers (via a file or terminal input).
   
   - Option 0: Exit the program.
+# Optional: This may slow down the computer, or be distracting
 ## Using the UserScript to Highlight key financial words
 1. Install TamperMonkey
 2. Enable Developer Mode and allow TamperMonkey to access local files
