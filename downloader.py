@@ -52,36 +52,38 @@ def get_json(token):
     """
     # Attempt to connect
     ticker = token[0]
-    cik = token[1]
+    cik = token[1].zfill(10)
+    links = []
     url = f"https://data.sec.gov/submissions/CIK{cik}.json"
     headers = {"User-Agent": f'cik {cik}@{ticker}.com'}  # Include a user agent header
     request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request) as response:
-        data = json.loads(response.read().decode())
-        links = []
-        name = data.get("name")
-        if not name:
-            writeFail(cik)
-            return links
-        filings = data.get("filings", {}).get("recent", {})
-        filing_urls = filings.get("primaryDocument", [])
-        filing_types = filings.get("form", [])
-        filing_dates = filings.get("filingDate", [])
+    try:
+        with urllib.request.urlopen(request) as response:
+            data = json.loads(response.read().decode())
+            name = data.get("name")
+            if not name:
+                writeFail(cik)
+                return links
+            filings = data.get("filings", {}).get("recent", {})
+            filing_urls = filings.get("primaryDocument", [])
+            filing_types = filings.get("form", [])
+            filing_dates = filings.get("filingDate", [])
 
-        url_size = len(filing_urls)
-        date_size = len(filing_dates)
-        
-        for i, type in enumerate(filing_types):
-            if type == "10-K" and i < url_size and i < date_size:
-                # Create the link to the 10-K filing
-                accession_number = filings.get("accessionNumber", [])[i].replace("-", "")
-                if accession_number:
-                    cik_pad = cik.zfill(10)  # Ensure CIK is 10 digits with leading zeros
-                    link = f"https://www.sec.gov/Archives/edgar/data/{cik_pad}/{accession_number}/{filing_urls[i]}"
-                    date = filing_dates[i]
-                    # Add the link to the list
-                    links.append([name, date, link, ticker])
-
+            url_size = len(filing_urls)
+            date_size = len(filing_dates)
+            
+            for i, type in enumerate(filing_types):
+                if type == "10-K" and i < url_size and i < date_size:
+                    # Create the link to the 10-K filing
+                    accession_number = filings.get("accessionNumber", [])[i].replace("-", "")
+                    if accession_number:
+                        link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
+                        date = filing_dates[i]
+                        # Add the link to the list
+                        links.append([name, date, link, ticker])
+    except urllib.error.URLError as e:
+        print(f"Failed to connect to {url}: {e.reason}\n")
+        writeFail(cik)
     # append any results to failOutFile
     if not links:
         print("No 10-K links for", ticker, cik)
@@ -193,7 +195,7 @@ def download_one(companies):
     if token:
         get_cik(token)
     else:
-        writeFail(cik)
+        get_cik([cik, cik])
 
 def download_multiple_from_file(companies):
     """
@@ -220,7 +222,7 @@ def download_multiple_from_file(companies):
                             if company:
                                 company_list.append(company)
                             else: 
-                                writeFail(cik)
+                                company_list.append([cik, cik])
                             processed_companies.append(cik)
                                 
             # Call the `download_multiple` function to download the list
@@ -233,14 +235,15 @@ def download_multiple_from_file(companies):
         if tokens:
             ciks = tokens.replace('\t', ',').replace('\n', ',').split(',')
             for cik in ciks:
-                cik = cik.strip()
-                company = next((comp for comp in companies if comp[0] == cik or comp[1] == cik.zfill(10)), None)
+                cik = cik.strip().zfill(10)
+                company = next((comp for comp in companies if comp[0] == cik or comp[1] == cik), None)
                 if company and company[1] not in processed_companies:
                     company_list.append(company)
                     processed_companies.add(company[1])
                 else:
                     if not company:
-                        writeFail(cik)
+                        company_list.append([cik, cik])
+                    processed_companies.add(cik)
             # Call the `download_multiple` function to download the list
             download_multiple(company_list)
         else:
