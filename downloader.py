@@ -69,13 +69,14 @@ def get_json(token):
             filing_urls = filings.get("primaryDocument", [])
             filing_types = filings.get("form", [])
             filing_dates = filings.get("filingDate", [])
+            report_dates = filings.get("reportDate", [])
             accession_numbers = filings.get("accessionNumber", [])
 
             for i in range(len(filing_types)):
                 if filing_types[i] == "10-K":  # You can add "10-K/A" here if amendments are needed
                     accession_number = accession_numbers[i].replace("-", "")
                     link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
-                    date = filing_dates[i]
+                    date = [filing_dates[i], report_dates[i]]
                     links.append([name, date, link, ticker])
 
             # Process older filings if they exist
@@ -88,13 +89,14 @@ def get_json(token):
                     filing_urls = filing_data.get("primaryDocument", [])
                     filing_types = filing_data.get("form", [])
                     filing_dates = filing_data.get("filingDate", [])
+                    report_dates = filing_data.get("reportDate", [])
                     accession_numbers = filing_data.get("accessionNumber", [])
 
                     for i in range(len(filing_types)):
                         if filing_types[i] == "10-K":  # Again, add "10-K/A" if needed
                             accession_number = accession_numbers[i].replace("-", "")
                             link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
-                            date = filing_dates[i]
+                            date = [filing_dates[i], report_dates[i]]
                             links.append([name, date, link, ticker])
 
     except urllib.error.URLError as e:
@@ -123,11 +125,11 @@ def open_links(links):
     
     # Initialize tqdm progress bar
     progress_bar = tqdm(total=len(links), desc=f"\nDownloading 10-K filings for {name} - {ticker}")
-
-    # Open and download each link
-    for idx, data in enumerate(links):
+    
+    # Open and download each link 
+    for data in links:
         name = data[0].replace("/", " ")
-        date = data[1]
+        date = data[1][0]
         url = data[2]
         filename = f"./10K/{ticker}/{date}.html"
         if Path(filename).exists():
@@ -155,7 +157,67 @@ def get_cik(token):
     Then, it will attempt to download the files via `open_links`
     """
     links = get_json(token)
+
     open_links(links)
+    
+def view_cik(token):
+    """
+    Gets SEC's JSON response for a specific company first to find all of its recent filings.
+    Then, it will attempt to view the links via `view_links`
+    """
+    links = get_json(token)
+
+    view_links(links)
+    
+def view_links(links):
+    """
+    Display 10-K filings within a specified year range in a table format.
+    Links are sorted in descending order by date.
+    """
+    if not links:
+        return
+        
+    start_year = input("Enter start reporting year (e.g., 2004): ")
+    end_year = input("Enter end reporting year (e.g., 2006): ")
+    
+    try:
+        start_year = int(start_year)
+        end_year = int(end_year)
+        
+        # Define column headers and widths
+        headers = ["Report Date", "Filing Date", "Company", "Link"]
+        widths = [12, 12, 30, 100]  # Adjust these widths as needed
+        
+        # Print header
+        print(f"\nFilings between {start_year} and {end_year}:")
+        print("\n" + "".join(f"{header:<{width}}" for header, width in zip(headers, widths)))
+        print("-" * sum(widths))
+        
+        # Print data rows
+        for link in links:
+            report_date = link[1][1]  # Get report date
+            year = int(report_date.split('-')[0])  # Extract year from date
+            
+            if start_year <= year <= end_year:
+                name = link[0]
+                filing_date = link[1][0]
+                url = link[2]
+                
+                # Format and print row
+                row = [
+                    report_date[:10],  # Trim date to YYYY-MM-DD
+                    filing_date[:10],  # Trim date to YYYY-MM-DD
+                    name[:28] + ".." if len(name) > 30 else name,  # Truncate long names
+                    url      # Truncate long URLs
+                ]
+                print("".join(f"{col:<{width}}" for col, width in zip(row, widths)))
+                
+    except ValueError:
+        print("Please enter valid years in YYYY format")
+    
+    print("\nPress enter to clear", end="")
+    input()
+        
 
 
 def parse_cik():
@@ -212,6 +274,17 @@ def download_one(companies):
         get_cik(token)
     else:
         get_cik([cik, cik])
+        
+def view_one(companies):
+    """
+    Directly download one value based on its CIK or ticker
+    """
+    cik = input("Enter the CIK or ticker of the company: ")
+    token = next((company for company in companies if company[0] == cik or company[1] == cik.zfill(10)), None)
+    if token:
+        view_cik(token)
+    else:
+        view_cik([cik, cik])
 
 def download_multiple_from_file(companies):
     """
@@ -274,6 +347,7 @@ def main_menu():
     print("1: Download filings from [A]ll companies")
     print("2: Download filings for [O]ne company by CIK/ticker")
     print("3: Download filings for [M]ultiple companies by CIKs/tickers")
+    print("4: [V]iew filings for One company by CIK/ticker")
     print("0: [E]xit")
     choice = input("Choose an option: ")
     return choice
@@ -294,6 +368,8 @@ def main():
             download_one(companies)
         elif choice in ['3', 'M', 'm']:
             download_multiple_from_file(companies)
+        elif choice in ['4', 'V', 'v']:
+            view_one(companies)
         elif choice in ['0', 'E', 'e']:
             print("Exiting...")
             break
