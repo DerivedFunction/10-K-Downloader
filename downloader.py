@@ -44,19 +44,18 @@ def writeFail(out):
 def get_json(token):
     """
     A GET request to https://data.sec.gov/submissions/CIK##########.json, which will return a JSON
-    response of filing data for that company. We will contruct a 10-K link using that data and append it
-    to the array links. https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls}
+    response of filing data for that company. Constructs 10-K links from both recent and older filings.
 
     Returns:
         Array of [name, date, link, ticker]
     """
-    # Attempt to connect
     ticker = token[0]
     cik = token[1].zfill(10)
     links = []
     url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-    headers = {"User-Agent": f'cik {cik}@{ticker}.com'}  # Include a user agent header
+    headers = {"User-Agent": f'cik {cik}@{ticker}.com'}
     request = urllib.request.Request(url, headers=headers)
+
     try:
         with urllib.request.urlopen(request) as response:
             data = json.loads(response.read().decode())
@@ -64,27 +63,44 @@ def get_json(token):
             if not name:
                 writeFail(cik)
                 return links
+
+            # Process recent filings
             filings = data.get("filings", {}).get("recent", {})
             filing_urls = filings.get("primaryDocument", [])
             filing_types = filings.get("form", [])
             filing_dates = filings.get("filingDate", [])
+            accession_numbers = filings.get("accessionNumber", [])
 
-            url_size = len(filing_urls)
-            date_size = len(filing_dates)
-            
-            for i, type in enumerate(filing_types):
-                if type == "10-K" and i < url_size and i < date_size:
-                    # Create the link to the 10-K filing
-                    accession_number = filings.get("accessionNumber", [])[i].replace("-", "")
-                    if accession_number:
-                        link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
-                        date = filing_dates[i]
-                        # Add the link to the list
-                        links.append([name, date, link, ticker])
+            for i in range(len(filing_types)):
+                if filing_types[i] == "10-K":  # You can add "10-K/A" here if amendments are needed
+                    accession_number = accession_numbers[i].replace("-", "")
+                    link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
+                    date = filing_dates[i]
+                    links.append([name, date, link, ticker])
+
+            # Process older filings if they exist
+            older_filings = data.get("filings", {}).get("files", [])
+            for filing in older_filings:
+                filing_url = f"https://data.sec.gov/submissions/{filing['name']}"
+                filing_request = urllib.request.Request(filing_url, headers=headers)
+                with urllib.request.urlopen(filing_request) as filing_response:
+                    filing_data = json.loads(filing_response.read().decode())
+                    filing_urls = filing_data.get("primaryDocument", [])
+                    filing_types = filing_data.get("form", [])
+                    filing_dates = filing_data.get("filingDate", [])
+                    accession_numbers = filing_data.get("accessionNumber", [])
+
+                    for i in range(len(filing_types)):
+                        if filing_types[i] == "10-K":  # Again, add "10-K/A" if needed
+                            accession_number = accession_numbers[i].replace("-", "")
+                            link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
+                            date = filing_dates[i]
+                            links.append([name, date, link, ticker])
+
     except urllib.error.URLError as e:
         print(f"Failed to connect to {url}: {e.reason}\n")
         writeFail(cik)
-    # append any results to failOutFile
+
     if not links:
         print("No 10-K links for", ticker, cik)
         writeFail(f'{ticker}\t{cik}')

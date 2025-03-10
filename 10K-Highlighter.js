@@ -5,64 +5,79 @@
 // @description  Highlight key words
 // @author       You
 // @match        file:///*/10K/*
+// @match        https://www.sec.gov/Archives/edgar/data/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=undefined.
 // @grant        none
 // ==/UserScript==
 
-(function() {
-    'use strict';
+(function () {
+  "use strict";
 
-    function highlight(text) {
-        var regex = new RegExp(text, "gi");
+  // Object to store word counts
+  const wordCounts = {};
 
-        // Iterate over all text nodes and replace matches
-        function recursiveHighlight(element) {
-            if (element.nodeType === Node.TEXT_NODE) {
-                var matches = element.nodeValue.match(regex);
-                if (matches) {
-                    var span = document.createElement('span');
-                    span.innerHTML = element.nodeValue.replace(regex, function(match) {
-                        return "<span class='highlight'>" + match + "</span>";
-                    });
-                    element.parentNode.insertBefore(span, element);
-                    element.remove();
-                }
-            } else if (element.nodeType === Node.ELEMENT_NODE && element.tagName !== 'SCRIPT' && element.tagName !== 'STYLE') {
-                Array.from(element.childNodes).forEach(recursiveHighlight);
-            }
+  function highlight(text) {
+    var regex = new RegExp(text, "gi");
+    let totalMatches = 0;
+
+    // Iterate over all text nodes and replace matches
+    function recursiveHighlight(element) {
+      if (element.nodeType === Node.TEXT_NODE) {
+        var matches = element.nodeValue.match(regex);
+        if (matches) {
+          totalMatches += matches.length;
         }
-
-        recursiveHighlight(document.body);
+      } else if (
+        element.nodeType === Node.ELEMENT_NODE &&
+        element.tagName !== "SCRIPT" &&
+        element.tagName !== "STYLE"
+      ) {
+        Array.from(element.childNodes).forEach(recursiveHighlight);
+      }
     }
 
+    recursiveHighlight(document.body);
+    return totalMatches;
+  }
 
-    // Words to highlight
-    var words = [
-        '\\b\\$[0-9,.]+(?:\\s+\\w+)*\\s*(?:million|billion)\\b',
-        '\\b(?:billion|million)\\b',
-        'notional amounts outstanding', 'notional amount',
-        'hedging instrument', 'derivative instrument',
-        'derivative not designated', 'derivatives not designated',
-        'reclassified from aoci into income',
-        'cash flow hedging', 'swap contract', 'forward contract',
-        'fair value of derivative', 'excluded from effectiveness testing', 'net investment',
-        'income on derivative', 'interest rate swap', 'financial instrument',
-        'foreign exchange contract', 'foreign exchange','forward exchange contract', 'forward exchange',
-        'foreign currency',
-
-        '\\bgain\\b', '\\bloss\\b',
-        '\\boci\\b', '\\baoci\\b', 'cash flow', 'notional', 'hedge', 'derivative', 'fair value'
-    ];
-    // Iterate over the words and highlight them
+  // Words to highlight
+  var words = [
+    "notional",
+    "foreign currency",
+    "interest rate swap",
+    "cross currency",
+    "cross-currency",
+    "foreign exchange",
+    "derivative liab",
+    "futures contract",
+    "options contract",
+    "forward contract",
+    "hedge",
+    "hedging",
+    "underlying asset",
+    "counterparty",
+    "collateral",
+    "derivative liabilit",
+    "warrant",
+  ];
+  setTimeout(() => {
+    // Iterate over the words, highlight them, and store counts
     for (var i = 0; i < words.length; i++) {
-        highlight(words[i]);
+      wordCounts[words[i]] = highlight(words[i]);
     }
 
     // Add CSS for highlighting
-    var style = document.createElement('style');
-    style.innerHTML = ".highlight { background-color: yellow; font-weight: bold; }";
+    var style = document.createElement("style");
+    style.innerHTML =
+      ".highlight { background-color: yellow; font-weight: bold; }";
     document.head.appendChild(style);
 
-    // Optionally, you can log a message when the script runs
+    // Log the results
     console.log("Highlighter script executed.");
+    console.log("Word occurrence counts:");
+    for (const [word, count] of Object.entries(wordCounts)) {
+      if (count > 0)
+        console.log(`"${word}": ${count} time${count === 1 ? "" : "s"}`);
+    }
+  }, 5000);
 })();
