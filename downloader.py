@@ -214,9 +214,6 @@ def view_links(links):
                 
     except ValueError:
         print("Please enter valid years in YYYY format")
-    
-    print("\nPress enter to clear", end="")
-    input()
         
 
 
@@ -342,7 +339,6 @@ def main_menu():
     """
     Main menu gives a terminal-like user interface.
     """
-    os.system('cls' if os.name == 'nt' else 'clear')  # Clear the console
     print("=== 10-K Downloader ===")
     print("1: Download filings from [A]ll companies")
     print("2: Download filings for [O]ne company by CIK/ticker")
