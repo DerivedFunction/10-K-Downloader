@@ -177,8 +177,8 @@ def view_links(links):
     if not links:
         return
         
-    start_year = input("Enter start reporting year (e.g., 2004): ")
-    end_year = input("Enter end reporting year (e.g., 2006): ")
+    start_year = input("Enter start reporting year: ").strip()
+    end_year = input("Enter end reporting year: ").strip()
     
     try:
         start_year = int(start_year)
