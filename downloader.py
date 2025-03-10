@@ -207,8 +207,8 @@ def view_links(links):
                 row = [
                     report_date[:10],  # Trim date to YYYY-MM-DD
                     filing_date[:10],  # Trim date to YYYY-MM-DD
-                    name[:28] + ".." if len(name) > 30 else name,  # Truncate long names
-                    url      # Truncate long URLs
+                    name[:28] + "  " if len(name) > 30 else name,  # Truncate long names
+                    url
                 ]
                 print("".join(f"{col:<{width}}" for col, width in zip(row, widths)))
                 
