@@ -41,6 +41,7 @@ def writeFail(out):
     with open(failOutFile, "a+") as file:
         print(f"Company not found: {out}\n")
         file.write(f'{out}\n')
+
 def get_json(token):
     """
     A GET request to https://data.sec.gov/submissions/CIK##########.json, which will return a JSON
@@ -49,11 +50,10 @@ def get_json(token):
     Returns:
         Array of [name, date, link, ticker]
     """
-    ticker = token[0]
-    cik = token[1].zfill(10)
+    cik = token.zfill(10)
     links = []
     url = f"https://data.sec.gov/submissions/CIK{cik}.json"
-    headers = {"User-Agent": f'cik {cik}@{ticker}.com'}
+    headers = {"User-Agent": f'cik {cik}@{cik}.com'}
     request = urllib.request.Request(url, headers=headers)
 
     try:
@@ -63,7 +63,7 @@ def get_json(token):
             if not name:
                 writeFail(cik)
                 return links
-
+            ticker = data.get("tickers",[])[0] if len(data.get("tickers",[])) > 0 else cik
             # Process recent filings
             filings = data.get("filings", {}).get("recent", {})
             filing_urls = filings.get("primaryDocument", [])
@@ -71,16 +71,17 @@ def get_json(token):
             filing_dates = filings.get("filingDate", [])
             report_dates = filings.get("reportDate", [])
             accession_numbers = filings.get("accessionNumber", [])
-
+            
             for i in range(len(filing_types)):
-                if filing_types[i] == "10-K":  # You can add "10-K/A" here if amendments are needed
+                if filing_types[i] in ["10-K", "10-K/A"]:  # You can add "10-K/A" here if amendments are needed
                     accession_number = accession_numbers[i].replace("-", "")
                     link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
                     date = [filing_dates[i], report_dates[i]]
-                    links.append([name, date, link, ticker])
-
+                    links.append([name, date, link, ticker, filing_types[i]])
+            
             # Process older filings if they exist
             older_filings = data.get("filings", {}).get("files", [])
+            
             for filing in older_filings:
                 filing_url = f"https://data.sec.gov/submissions/{filing['name']}"
                 filing_request = urllib.request.Request(filing_url, headers=headers)
@@ -93,11 +94,11 @@ def get_json(token):
                     accession_numbers = filing_data.get("accessionNumber", [])
 
                     for i in range(len(filing_types)):
-                        if filing_types[i] == "10-K":  # Again, add "10-K/A" if needed
+                        if filing_types[i] in ["10-K", "10-K/A"]: 
                             accession_number = accession_numbers[i].replace("-", "")
                             link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
                             date = [filing_dates[i], report_dates[i]]
-                            links.append([name, date, link, ticker])
+                            links.append([name, date, link, ticker, filing_types[i]])
 
     except urllib.error.URLError as e:
         print(f"Failed to connect to {url}: {e.reason}\n")
@@ -129,7 +130,7 @@ def open_links(links):
     # Open and download each link 
     for data in links:
         name = data[0].replace("/", " ")
-        date = data[1][0]
+        date = data[1][1]
         url = data[2]
         filename = f"./10K/{ticker}/{date}.html"
         if Path(filename).exists():
@@ -176,20 +177,19 @@ def view_links(links):
     """
     if not links:
         return
-        
     start_year = input("Enter start reporting year: ").strip()
     end_year = input("Enter end reporting year: ").strip()
-    
+    name = links[0][0]
     try:
         start_year = int(start_year)
         end_year = int(end_year)
         
         # Define column headers and widths
-        headers = ["Report Date", "Filing Date", "Company", "Link"]
-        widths = [12, 12, 30, 100]  # Adjust these widths as needed
+        headers = ["Type", "Filing Date", "Report Date", "Link"]
+        widths = [8, 12, 12, 100]
         
         # Print header
-        print(f"\nFilings between {start_year} and {end_year}:")
+        print(f"\nFilings for {name}:")
         print("\n" + "".join(f"{header:<{width}}" for header, width in zip(headers, widths)))
         print("-" * sum(widths))
         
@@ -197,54 +197,24 @@ def view_links(links):
         for link in links:
             report_date = link[1][1]  # Get report date
             year = int(report_date.split('-')[0])  # Extract year from date
-            
             if start_year <= year <= end_year:
-                name = link[0]
+                
                 filing_date = link[1][0]
                 url = link[2]
-                
+                type = link[4]
                 # Format and print row
                 row = [
-                    report_date[:10],  # Trim date to YYYY-MM-DD
+                    type,
                     filing_date[:10],  # Trim date to YYYY-MM-DD
-                    name[:28] + "  " if len(name) > 30 else name,  # Truncate long names
+                    report_date[:10],  # Trim date to YYYY-MM-DD
                     url
                 ]
                 print("".join(f"{col:<{width}}" for col, width in zip(row, widths)))
                 
     except ValueError:
         print("Please enter valid years in YYYY format")
+        view_links(links)
         
-
-
-def parse_cik():
-    """
-    Fetches SEC's list of ticker to CIK values for approximately 12,000 companies.
-    
-    This function sends a GET request to the SEC's website, parses the response, and stores the ticker to CIK values in an array.
-    
-    Returns:
-        list: An array of [ticker, cik] pairs, where 'ticker' is a company's ticker symbol and 'cik' is the corresponding CIK code.
-    """
-    
-    # Stores each company's [ticker, cik] pair
-    cik_list = []
-
-    # Send a GET request to the SEC's website
-    headers = {"User-Agent": "test test@test.com"}  # Include a user agent header
-    request = urllib.request.Request('https://www.sec.gov/include/ticker.txt', headers=headers)
-    with urllib.request.urlopen(request) as response:
-        # Read each line for ticker and CIK. Append it to the array.
-        lines = response.read().decode('utf-8').splitlines()
-        print(f'Matched {len(lines)} ticker to CIK values')
-        for line in lines:
-            token = line.strip().split('\t')
-            if len(token) > 1:
-                cik_list.append([token[0], token[1].zfill(10)])
-    
-    # Return final array
-    return cik_list
-
 
 
 def download_multiple(companies):
@@ -255,35 +225,21 @@ def download_multiple(companies):
         get_cik(company)
 
 
-def download_all(companies):
-    """
-    Directly download from the array given
-    """
-    download_multiple(companies)
-
-def download_one(companies):
+def download_one():
     """
     Directly download one value based on its CIK or ticker
     """
     cik = input("Enter the CIK or ticker of the company: ")
-    token = next((company for company in companies if company[0] == cik or company[1] == cik.zfill(10)), None)
-    if token:
-        get_cik(token)
-    else:
-        get_cik([cik, cik])
+    get_cik(cik)
         
-def view_one(companies):
+def view_one():
     """
     Directly download one value based on its CIK or ticker
     """
-    cik = input("Enter the CIK or ticker of the company: ")
-    token = next((company for company in companies if company[0] == cik or company[1] == cik.zfill(10)), None)
-    if token:
-        view_cik(token)
-    else:
-        view_cik([cik, cik])
+    cik = input("Enter the CIK or ticker of the company: ").strip()
+    view_cik(cik)
 
-def download_multiple_from_file(companies):
+def download_multiple_from_file():
     """
     Directly download one value based on its CIK or ticker from a file output
     """
@@ -303,32 +259,22 @@ def download_multiple_from_file(companies):
                     ciks = line.replace('\t', ',').split(',')
                     for cik in ciks:
                         cik = cik.strip()
-                        company = next((comp for comp in companies if comp[0] == cik or comp[1] == cik.zfill(10)), None)
                         if cik not in processed_companies:
-                            if company:
-                                company_list.append(company)
-                            else: 
-                                company_list.append([cik, cik])
-                            processed_companies.append(cik)
-                                
+                            company_list.append(cik)
+                            processed_companies.append(cik)                                
             # Call the `download_multiple` function to download the list
             download_multiple(company_list)
     # Read from terminal output
     else:
         # Parse the tokens
-        print("Skipping file input, reading from terminal. Enter CIKs/tickers separated by commas:")
+        print("Skipping file input, reading from terminal. Enter CIKs separated by commas:")
         tokens = input("Values: ")
         if tokens:
             ciks = tokens.replace('\t', ',').replace('\n', ',').split(',')
             for cik in ciks:
                 cik = cik.strip().zfill(10)
-                company = next((comp for comp in companies if comp[0] == cik or comp[1] == cik), None)
-                if company and company[1] not in processed_companies:
-                    company_list.append(company)
-                    processed_companies.add(company[1])
-                else:
-                    if not company:
-                        company_list.append([cik, cik])
+                if cik not in processed_companies:
+                    company_list.append(cik)
                     processed_companies.add(cik)
             # Call the `download_multiple` function to download the list
             download_multiple(company_list)
@@ -340,12 +286,11 @@ def main_menu():
     Main menu gives a terminal-like user interface.
     """
     print("=== 10-K Downloader ===")
-    print("1: Download filings from [A]ll companies")
-    print("2: Download filings for [O]ne company by CIK/ticker")
-    print("3: Download filings for [M]ultiple companies by CIKs/tickers")
-    print("4: [V]iew filings for One company by CIK/ticker")
+    print("1: Download filings for [O]ne company by CIK")
+    print("2: Download filings for [M]ultiple companies by CIKs")
+    print("3: [V]iew filings for One company by CIK")
     print("0: [E]xit")
-    choice = input("Choose an option: ")
+    choice = input("Choose an option: ").strip()
     return choice
 
 def main():
@@ -355,17 +300,14 @@ def main():
     if not os.path.exists('./10K'):
         # Create directory
         os.makedirs('./10K')
-    companies = parse_cik()
     while True:
         choice = main_menu()
-        if choice in ['1', 'A', 'a']:
-            download_all(companies)
-        elif choice in ['2', 'O', 'o']:
-            download_one(companies)
-        elif choice in ['3', 'M', 'm']:
-            download_multiple_from_file(companies)
-        elif choice in ['4', 'V', 'v']:
-            view_one(companies)
+        if choice in ['1', 'O', 'o']:
+            download_one()
+        elif choice in ['2', 'M', 'm']:
+            download_multiple_from_file()
+        elif choice in ['3', 'V', 'v']:
+            view_one()
         elif choice in ['0', 'E', 'e']:
             print("Exiting...")
             break
