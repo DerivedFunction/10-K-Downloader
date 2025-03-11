@@ -100,15 +100,14 @@ def get_json(token):
                             link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
                             date = [filing_dates[i], report_dates[i]]
                             links.append([name, date, link, ticker, filing_types[i]])
+        if not links:
+            print("No 10-K links for", ticker, cik)
+            writeFail(f'{ticker}\t{cik}')
+        return links
 
     except urllib.error.URLError as e:
         print(f"Failed to connect to {url}: {e.reason}\n")
         writeFail(cik)
-
-    if not links:
-        print("No 10-K links for", ticker, cik)
-        writeFail(f'{ticker}\t{cik}')
-    return links
 
 def open_links(links):
     """
