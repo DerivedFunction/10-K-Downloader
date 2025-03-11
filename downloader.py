@@ -38,7 +38,7 @@ from pathlib import Path # Find if file exists
 from tqdm import tqdm # Progress bar
 
 def writeFail(out):
-    with open(failOutFile, "a+") as file:
+    with open(FAIL_FILE, "a+") as file:
         print(f"Company not found: {out}\n")
         file.write(f'{out}\n')
 
@@ -53,6 +53,7 @@ def get_json(token):
     cik = token.zfill(10)
     links = []
     url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+    print(f"Searching: {url}\n")
     headers = {"User-Agent": f'cik {cik}@{cik}.com'}
     request = urllib.request.Request(url, headers=headers)
 
@@ -73,7 +74,7 @@ def get_json(token):
             accession_numbers = filings.get("accessionNumber", [])
             
             for i in range(len(filing_types)):
-                if filing_types[i] in ["10-K", "10-K/A"]:  # You can add "10-K/A" here if amendments are needed
+                if filing_types[i] in FILING_TYPES:  # You can add "10-K/A" here if amendments are needed
                     accession_number = accession_numbers[i].replace("-", "")
                     link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
                     date = [filing_dates[i], report_dates[i]]
@@ -94,7 +95,7 @@ def get_json(token):
                     accession_numbers = filing_data.get("accessionNumber", [])
 
                     for i in range(len(filing_types)):
-                        if filing_types[i] in ["10-K", "10-K/A"]: 
+                        if filing_types[i] in FILING_TYPES: 
                             accession_number = accession_numbers[i].replace("-", "")
                             link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession_number}/{filing_urls[i]}"
                             date = [filing_dates[i], report_dates[i]]
@@ -315,7 +316,8 @@ def main():
             print("Invalid choice, please try again.")
 
 # File output for any company with no 10-K links
-failOutFile = "fail_cik.txt"
+FILING_TYPES = ["10-K", "10-K/A", "20-F"]
+FAIL_FILE = "fail_cik.txt"
 if __name__ == "__main__":   
     main()
 
